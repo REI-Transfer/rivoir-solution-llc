@@ -33,14 +33,18 @@ export function Header({ companyName, phoneDisplay, phoneHref, logoUrl, headerBg
                 unoptimized
               />
             ) : (
-              <Image
-                src={logoUrl}
-                alt={companyName}
-                width={44}
-                height={44}
-                className="h-16 w-16 md:h-20 md:w-20 flex-shrink-0 rounded-lg object-contain"
-                unoptimized
-              />
+              // Zoom into the logo to crop the padded blue tile so the brand
+              // reads larger; box size unchanged, overflow-hidden clips the scale.
+              <div className="h-16 w-16 md:h-20 md:w-20 flex-shrink-0 overflow-hidden rounded-lg">
+                <Image
+                  src={logoUrl}
+                  alt={companyName}
+                  width={44}
+                  height={44}
+                  className="h-full w-full origin-center scale-150 object-cover"
+                  unoptimized
+                />
+              </div>
             )
           )}
         </div>
