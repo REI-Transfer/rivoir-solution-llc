@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { captureTrackingData, getIPAddress, readGfSid } from "@/lib/tracking"
 import { Input } from "@/components/ui/input"
 import { AddressAutocomplete, type AddressDetails, type ServiceArea } from "./address-autocomplete"
+import { trackStep } from "@/lib/funnel"
 
 interface SurveyData {
   address: string
@@ -244,6 +245,8 @@ export function SurveyCard({ phoneDisplay = "(800) 000-0000", phoneHref = "80000
     let sessionFired: string[] = []
     try { sessionFired = JSON.parse(window.sessionStorage.getItem("rivoir_steps_fired") || "[]") } catch {}
     if (sessionFired.includes(eventName)) { firedStepsRef.current.add(step); return }
+    // Durable funnel beacon — independent of fbq availability (own per-session dedup).
+    trackStep(step, eventName)
     const fbq = (window as unknown as { fbq?: (...args: unknown[]) => void }).fbq
     if (typeof fbq !== "function") return
     fbq("trackCustom", eventName, { step_number: step, content_name: "Rivoir Survey", content_category: "real_estate" })
@@ -345,6 +348,9 @@ export function SurveyCard({ phoneDisplay = "(800) 000-0000", phoneHref = "80000
       } catch (e) {
         // Continue to thank-you even if webhook fails
       }
+
+      // Funnel: record completion (step 99) once the submit path has run.
+      trackStep(99, 'RivoirStep99_Completed')
 
       window.location.href = '/thank-you'
     } else if (step < totalSteps) {
