@@ -8,6 +8,13 @@ import { FooterSection } from "@/components/v2/footer-section";
 import { VSLSection } from "@/components/survey/vsl-section";
 import { buildBrand } from "@/lib/brand";
 
+// Keep /v2 out of search indexes until cutover. Scoped to this route only — the
+// root "/" landing stays fully indexable (no robots directive at the layout level).
+// title/description are inherited from app/layout.tsx and intentionally left alone.
+export const metadata = {
+  robots: { index: false, follow: false },
+};
+
 // New /v2 landing — reproduces the rei-survey-template-v2 landing layout (same hero
 // shape, stat tiles, card chrome and section rhythm), branded from Rivoir's real env
 // values via buildBrand(). Additive: the existing "/" landing and thank-you page are
