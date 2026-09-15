@@ -23,10 +23,27 @@ export const metadata = {
 export default function V2LandingPage() {
   const brand = buildBrand();
   return (
-    <main className="min-h-screen bg-white" style={{ ["--brand-accent" as any]: brand.accentColor }}>
+    <main className="v2-light min-h-screen bg-white" style={{ ["--brand-accent" as any]: brand.accentColor }}>
       <style
         dangerouslySetInnerHTML={{
           __html: `
+/* Scope the shadcn design tokens to LIGHT values for /v2 only (the template does
+   this via a .v2-light class in its globals.css; ours can't be modified). Without
+   this the token-driven sections (philosophy/sales-letter/faq: bg-background,
+   bg-secondary, bg-card, text-foreground) fall through to Rivoir's :root shadcn
+   DARK defaults (--background: oklch(0.145) ≈ black) and render black. Deliberately
+   omits --accent and --primary so they inherit Rivoir's #052547 from the layout —
+   the survey card stays navy, not the template's teal #2A9D8F. */
+.v2-light {
+  --background: #FFFFFF; --foreground: #0F1D2F;
+  --card: #FFFFFF; --card-foreground: #0F1D2F;
+  --popover: #FFFFFF; --popover-foreground: #0F1D2F;
+  --secondary: #F5F7FA; --secondary-foreground: #0F1D2F;
+  --muted: #F5F7FA; --muted-foreground: #5A6B7D;
+  --destructive: #DC2626; --destructive-foreground: #FFFFFF;
+  --border: #E2E8F0; --input: #FFFFFF; --ring: #1B2A4A;
+  background-color: #FFFFFF; color: #0F1D2F;
+}
 @keyframes reveal-up { from { opacity: 0; transform: translateY(60px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes scale-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
 @keyframes bounce-x { 0%,100% { transform: translateX(0); } 50% { transform: translateX(6px); } }
