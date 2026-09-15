@@ -5,7 +5,6 @@ import { TrustSection } from "@/components/v2/trust-section";
 import { SalesLetterSection } from "@/components/v2/sales-letter-section";
 import { FaqSection } from "@/components/v2/faq-section";
 import { FooterSection } from "@/components/v2/footer-section";
-import { VSLSection } from "@/components/survey/vsl-section";
 import { buildBrand } from "@/lib/brand";
 
 // Keep /v2 out of search indexes until cutover. Scoped to this route only — the
@@ -61,17 +60,6 @@ export default function V2LandingPage() {
       <Header brand={brand} />
       <HeroSection brand={brand} />
       <PhilosophySection brand={brand} />
-
-      {/* VSL slot — Rivoir's live Vidalytics VSL (components/survey/vsl-section.tsx,
-          reused as-is; returns null when the NEXT_PUBLIC_VIDALYTICS_* env is unset). */}
-      <section className="bg-white px-6 py-16 md:py-24">
-        <div className="mx-auto max-w-4xl">
-          <h2 className="mb-8 text-center text-3xl font-bold tracking-tight text-[#0F1D2F] md:text-4xl">
-            See How It Works
-          </h2>
-          <VSLSection />
-        </div>
-      </section>
 
       <TrustSection brand={brand} />
       <SalesLetterSection brand={brand} />
