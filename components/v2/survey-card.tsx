@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { AddressAutocomplete, type AddressDetails } from "@/components/v2/address-autocomplete"
 import { isWithinServiceArea } from "@/lib/service-area-v2"
 import { trackStep } from "@/lib/funnel"
+import { marketPhrase, type Brand } from "@/lib/brand"
 
 interface SurveyData {
   address: string
@@ -203,23 +204,14 @@ function deriveAddressParts(formatted: string): { city: string; state: string; z
 
 interface SurveyCardProps {
   initialAddress?: string
-  companyName: string
-  phoneDisplay: string
-  phoneHref: string
-  marketName?: string
-  disqualifiedPropertyTypes: string[]
-  serviceAreasRaw: string
+  brand: Brand
 }
 
-export function SurveyCard({
-  initialAddress,
-  companyName,
-  phoneDisplay,
-  phoneHref,
-  marketName,
-  disqualifiedPropertyTypes,
-  serviceAreasRaw,
-}: SurveyCardProps) {
+export function SurveyCard({ initialAddress, brand }: SurveyCardProps) {
+  const companyName = brand.companyName
+  const phoneDisplay = brand.phoneDisplay
+  const phoneHref = brand.phoneHref
+  const disqualifiedPropertyTypes = brand.disqualifiedPropertyTypes
   const [step, setStep] = useState(initialAddress ? 2 : 1)
   const [surveyData, setSurveyData] = useState<SurveyData>({
     address: initialAddress || "",
@@ -262,19 +254,36 @@ export function SurveyCard({
   const TWO_STEP_KEY = 'rivoirV2TwoStepLead'
   const [phase, setPhase] = useState<1 | 2>(1)
   // Persist phase-1 capture so a refresh mid-survey doesn't lose it (two-step only).
+  // The saved state carries a timestamp and EXPIRES after 24h: within the window we
+  // resume phase 2 (We Solve Homes pattern); past it — or if the value is missing its
+  // timestamp, malformed, or unparseable — we clear it and start clean at phase 1.
+  // Any failure fails safe to phase 1; it never throws into the form.
+  const TWO_STEP_TTL_MS = 24 * 60 * 60 * 1000
   useEffect(() => {
     if (!twoStep) return
     try {
       const saved = localStorage.getItem(TWO_STEP_KEY)
       if (saved) {
-        const d = JSON.parse(saved)
-        if (d.fields) setSurveyData((prev) => ({ ...prev, ...d.fields }))
-        if (d.basicPosted) { setPhase(2); setAddressVerified(true); setStep(2) }
+        let d: { basicPosted?: boolean; ts?: number; fields?: Partial<SurveyData> } | null = null
+        try { d = JSON.parse(saved) } catch { d = null }
+        const ts = d && typeof d.ts === "number" ? d.ts : 0
+        const fresh = !!(d && d.basicPosted && ts > 0 && Date.now() - ts < TWO_STEP_TTL_MS)
+        if (fresh) {
+          if (d!.fields) setSurveyData((prev) => ({ ...prev, ...d!.fields }))
+          setPhase(2); setAddressVerified(true); setStep(2)
+        } else {
+          // Stale (>24h), malformed, or timestamp-less — discard and begin at phase 1.
+          try { localStorage.removeItem(TWO_STEP_KEY) } catch {}
+          if (initialAddress) { setAddressVerified(true); setStep(9) }
+        }
       } else if (initialAddress) {
         // hero prefilled the address: go straight to the phase-1 contact step
         setAddressVerified(true); setStep(9)
       }
-    } catch {}
+    } catch {
+      // Fail safe: never throw into the form — drop any bad state and stay at phase 1.
+      try { localStorage.removeItem(TWO_STEP_KEY) } catch {}
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -437,7 +446,7 @@ export function SurveyCard({
       console.error('Basic capture error:', e)
     }
     try {
-      localStorage.setItem(TWO_STEP_KEY, JSON.stringify({ basicPosted: true, fields: {
+      localStorage.setItem(TWO_STEP_KEY, JSON.stringify({ basicPosted: true, ts: Date.now(), fields: {
         address: surveyData.address, city, state, zip,
         firstName: surveyData.firstName, lastName: surveyData.lastName, email: surveyData.email, phone: surveyData.phone,
       }}))
@@ -550,7 +559,7 @@ export function SurveyCard({
     // circles and isWithinServiceArea returns true for every address. Phase 1 (no
     // disqualifiers) then routes to the contact step; a configured-but-outside
     // address would show the outsideArea screen.
-    if (isWithinServiceArea(details.lat, details.lng, serviceAreasRaw)) {
+    if (isWithinServiceArea(details.lat, details.lng)) {
       setAddressVerified(true)
       setTimeout(() => { setStep(9) }, 300)
       return
@@ -615,7 +624,7 @@ export function SurveyCard({
       outsideArea: {
         title: "We Don't Service That Area Yet",
         message: `We're not able to make an offer on properties outside our current buying area.`,
-        detail: `If you have a property in ${marketName || "your area"} you'd like to sell, feel free to submit that address instead. We'd love to help.`,
+        detail: `If you have a property in ${marketPhrase(brand)} you'd like to sell, feel free to submit that address instead. We'd love to help.`,
       },
     }
     const msg = disqualifyMessages[disqualifyReason] || disqualifyMessages.notOwner
