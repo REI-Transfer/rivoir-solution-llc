@@ -260,7 +260,7 @@ function ThankYouV1() {
 
         {/* Standalone welcome video */}
         <div className="mb-8">
-          <AutoplaySoundVideo src="https://q0htkxebyzubsyx9.public.blob.vercel-storage.com/Jamie%20Rivoir%201%20%281%29%20EDITED.mp4" />
+          <AutoplaySoundVideo src="https://q0htkxebyzubsyx9.public.blob.vercel-storage.com/Jamie%20Rivoir%201%20%281%29%20EDITED-faststart.mp4" />
         </div>
 
         {/* Video section */}
