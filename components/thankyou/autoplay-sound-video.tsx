@@ -30,13 +30,13 @@ export function AutoplaySoundVideo({ src, className = "" }: { src: string; class
     >
       <video
         ref={ref}
-        src={src}
+        src={`${src}#t=0.1`}
         autoPlay
         muted
         playsInline
         preload="metadata"
         controls={soundOn}
-        className="block h-auto w-full"
+        className="block aspect-[9/16] w-full"
       />
       {!soundOn && (
         <button
