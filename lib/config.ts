@@ -33,8 +33,8 @@ const config = {
   stat3Label:      process.env.STAT_3_LABEL      ?? "Cash Offer",
 
   // SEO
-  metaTitle:       process.env.META_TITLE        ?? "Sell Your House Fast For Cash",
-  metaDescription: process.env.META_DESCRIPTION  ?? "Get a fair cash offer for your home in 24 hours. No fees, no repairs, no hassle.",
+  metaTitle:       process.env.META_TITLE        || "Sell Your House Fast For Cash",
+  metaDescription: process.env.META_DESCRIPTION  || "Get a fair cash offer for your home in 24 hours. No fees, no repairs, no hassle.",
 
   // Footer
   privacyPolicyUrl: process.env.PRIVACY_POLICY_URL ?? "/privacy",
