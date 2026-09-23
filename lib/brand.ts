@@ -30,6 +30,7 @@ export interface Brand {
   stat2Label: string
   stat3Value: string
   stat3Label: string
+  licenseDisclosure: string
   // Rivoir extension: the env-driven property-type DQ list, threaded to the
   // two-step survey card (DISQUALIFIED_PROPERTY_TYPES is server-only, not NEXT_PUBLIC).
   disqualifiedPropertyTypes: string[]
@@ -61,6 +62,7 @@ export function buildBrand(): Brand {
     stat2Label: config.stat2Label,
     stat3Value: config.stat3Value,
     stat3Label: config.stat3Label,
+    licenseDisclosure: config.licenseDisclosure,
     disqualifiedPropertyTypes: config.disqualifiedPropertyTypes
       .split(",")
       .map((s) => s.trim())
