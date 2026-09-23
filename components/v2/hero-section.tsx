@@ -42,7 +42,10 @@ export function HeroSection({ brand }: { brand: Brand }) {
                 className="h-[80vh] w-auto object-contain object-bottom"
               />
               {brand.foundersCaption && (
-                <p className="text-center text-sm text-[#5A6B7D] pb-4 max-w-xs">{brand.foundersCaption}</p>
+                <p className="text-center text-sm text-[#5A6B7D] max-w-xs">{brand.foundersCaption}</p>
+              )}
+              {brand.licenseDisclosure && (
+                <p className="mt-1 pb-4 max-w-xs text-center text-[11px] leading-snug text-[#8A97A6]">{brand.licenseDisclosure}</p>
               )}
             </div>
           </div>
@@ -165,6 +168,9 @@ export function HeroSection({ brand }: { brand: Brand }) {
               </div>
               {brand.foundersCaption && (
                 <p className="text-center text-sm text-[#5A6B7D] mt-2 max-w-xs">{brand.foundersCaption}</p>
+              )}
+              {brand.licenseDisclosure && (
+                <p className="mt-1 max-w-xs text-center text-[11px] leading-snug text-[#8A97A6]">{brand.licenseDisclosure}</p>
               )}
             </div>
           )}

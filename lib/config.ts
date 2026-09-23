@@ -31,6 +31,10 @@ const config = {
   stat2Label:      process.env.STAT_2_LABEL      ?? "Years in Business",
   stat3Value:      process.env.STAT_3_VALUE      ?? "24 Hrs",
   stat3Label:      process.env.STAT_3_LABEL      ?? "Cash Offer",
+  // Licensed-agent disclosure (California DRE and equivalents). Free text so a
+  // brokerage line, licence number and address can be set per client without a
+  // code change. Empty for clients who are not licensed, and then nothing renders.
+  licenseDisclosure: process.env.LICENSE_DISCLOSURE ?? "",
 
   // SEO
   metaTitle:       process.env.META_TITLE        || "Sell Your House Fast For Cash",
