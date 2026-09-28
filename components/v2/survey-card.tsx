@@ -75,15 +75,18 @@ const CONDITION_OPTIONS = [
   { id: "distressed", label: "Distressed - Significant issues", desc: "Not livable as-is. Significant damage, or it's been sitting vacant." },
 ]
 
+// Newer reason list (the one on our newer client forms, e.g. Simple Key). The last
+// option ("no-reason") is a hard stop: the seller sees the "Just Browsing?" screen.
 const REASON_OPTIONS = [
   { id: "foreclosure", label: "Facing foreclosure" },
   { id: "behind-payments", label: "Behind on payments" },
   { id: "inherited", label: "Inherited property" },
   { id: "divorce", label: "Divorce or separation" },
-  { id: "relocation", label: "Job relocation" },
-  { id: "downsizing", label: "Downsizing" },
   { id: "repairs", label: "Can't afford repairs" },
-  { id: "other", label: "Other" },
+  { id: "vacant", label: "Vacant property I need to sell" },
+  { id: "urgent-financial", label: "Urgent financial situation not listed above" },
+  { id: "personal", label: "Personal situation not listed above" },
+  { id: "no-reason", label: "No reason / seeing what my house is worth" },
 ]
 
 // ─── Lead scoring (browser-side, no n8n changes) ───────────────────────
@@ -100,6 +103,8 @@ const SCORE_REASON: Record<string, number> = {
   'inherited': 2, 'repairs': 2,
   'other': 1,
   'relocation': 0, 'divorce': 0, 'downsizing': 0,
+  // newer list ids; 'no-reason' is stopped before submit so its weight never counts
+  'urgent-financial': 3, 'vacant': 2, 'personal': 1, 'no-reason': 0,
 }
 const SCORE_CONDITION: Record<string, number> = {
   'poor': 1, 'distressed': 1,
@@ -128,6 +133,7 @@ function disqualifyReasonFor(d: SurveyData): string {
   if (d.listedOnMarket !== 'not-listed') return 'listed'
   if (d.isLegalOwner === 'no') return 'not_owner'
   if (d.condition === 'excellent') return 'excellent_condition'
+  if (d.reason === 'no-reason') return 'no_reason'
   return 'unknown'
 }
 // ──────────────────────────────────────────────────────────────────────
@@ -589,6 +595,13 @@ export function SurveyCard({ initialAddress, brand }: SurveyCardProps) {
       return
     }
 
+    // "No reason / seeing what my house is worth" is a hard stop (same as the newer client forms).
+    if (field === "reason" && value === "no-reason") {
+      sendDisqualified("noReason", answers)
+      setTimeout(() => { setDisqualifyReason("noReason"); setIsDisqualified(true) }, 300)
+      return
+    }
+
     // Two-step: on the last qualifying step (reason, step 8) just record the answer and STOP —
     // the final submit stays behind the "Get My Cash Offer" button (no auto-submit).
     if (twoStep && phase === 2 && step === 8) { return }
@@ -662,6 +675,11 @@ export function SurveyCard({ initialAddress, brand }: SurveyCardProps) {
         title: "We're Unable to Assist",
         message: "Unfortunately, we're not able to make an offer on this type of property at this time.",
         detail: "We primarily purchase single-family homes, multi-family properties, condos, and townhouses. If you have a different property you'd like to sell, feel free to reach out.",
+      },
+      noReason: {
+        title: "Just Browsing?",
+        message: "It sounds like you're gathering information right now rather than looking to sell.",
+        detail: "When you're ready to sell, come back and we'll get you a fair cash offer. Feel free to call us any time if your situation changes.",
       },
       excellentCondition: {
         title: "This May Not Be the Right Fit",
