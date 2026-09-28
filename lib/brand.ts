@@ -9,6 +9,9 @@ import config from "./config"
 
 export interface Brand {
   companyName: string
+  /** Reader-friendly name for body copy: COMPANY_NAME is the all-caps legal name
+   *  ("RIVOIR SOLUTIONS LLC"); this is "Rivoir Solutions". BRAND_NAME overrides it. */
+  displayName: string
   phoneDisplay: string
   phoneHref: string
   callinDisplay: string
@@ -19,6 +22,11 @@ export interface Brand {
   headshotUrl: string
   foundersPhotoUrl: string
   foundersCaption: string
+  /** Transparent owner cut-outs: hero (ownerCutoutUrl) and team band (teamPhotoUrl). */
+  ownerCutoutUrl: string
+  teamPhotoUrl: string
+  heroBgUrl: string
+  teamBgUrl: string
   headline: string
   headlineAccent: string
   subheadline: string
@@ -36,10 +44,18 @@ export interface Brand {
   disqualifiedPropertyTypes: string[]
 }
 
+function displayNameFrom(legal: string): string {
+  if (process.env.BRAND_NAME) return process.env.BRAND_NAME
+  const noSuffix = legal.replace(/,?\s+(LLC|L\.L\.C\.|INC\.?|CORP\.?)$/i, "").trim()
+  if (noSuffix !== noSuffix.toUpperCase()) return noSuffix
+  return noSuffix.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase())
+}
+
 /** Server-only. Build the plain, serializable brand object from Rivoir's env config. */
 export function buildBrand(): Brand {
   return {
     companyName: config.companyName,
+    displayName: displayNameFrom(config.companyName),
     phoneDisplay: config.phoneDisplay,
     phoneHref: config.phoneHref,
     callinDisplay: "",
@@ -51,10 +67,14 @@ export function buildBrand(): Brand {
     // The v2 hero owner cut-out uses foundersPhotoUrl; Rivoir's owner image is HEADSHOT_URL.
     foundersPhotoUrl: config.headshotUrl,
     foundersCaption: "",
+    ownerCutoutUrl: config.ownerCutoutUrl,
+    teamPhotoUrl: config.teamPhotoUrl,
+    heroBgUrl: config.heroBgUrl,
+    teamBgUrl: config.teamBgUrl,
     headline: config.headline,
     headlineAccent: config.headlineAccent,
     subheadline: config.subheadline,
-    marketName: "",
+    marketName: config.marketName,
     smsKeyword: "",
     stat1Value: config.stat1Value,
     stat1Label: config.stat1Label,

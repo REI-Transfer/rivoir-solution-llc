@@ -11,6 +11,16 @@ import { NextResponse } from "next/server"
  * It forwards to the same n8n handler (WEBHOOK_URL); the handler's IF Second Submit
  * gate routes source:"basic-capture" (phase 1) to an upsert-only branch and everything
  * else (source:"qualifying-details", or none) to the full chain.
+ *
+ * Standard two-step contract (lead_stage), sent alongside the unchanged `source` values:
+ *   'early'        phase 1 contact details   source "basic-capture"       -> n8n (upsert only)
+ *   'complete'     finished survey           source "qualifying-details"  -> n8n (full chain)
+ *   'disqualified' phase-2 hard DQ after the early post, source "disqualified"
+ *                  -> NOT sent to WEBHOOK_URL: this handler's gate only knows "basic-capture",
+ *                     so anything else would run the full chain (client email, GHL opportunity,
+ *                     Meta CAPI "Lead") for a disqualified seller. Forwarded only when
+ *                     WEBHOOK_URL_DISQUALIFIED is set (a handler that understands it).
+ * Missing lead_stage = treated by the source value exactly as before.
  */
 
 const FORM_SLUG = "rivoir-solution-llc-survey"
@@ -22,7 +32,7 @@ const submissionLog = new Map<string, { count: number; firstSubmit: number }>()
 function isRateLimited(ip: string): boolean {
   const now = Date.now()
   const window = 60 * 60 * 1000 // 1 hour
-  const maxSubmissions = 5 // two-step posts twice per lead; allow a full retry
+  const maxSubmissions = 6 // two-step posts twice per lead (early + complete/disqualified); allow a full retry
 
   const entry = submissionLog.get(ip)
   if (!entry) {
@@ -51,6 +61,12 @@ export async function POST(request: Request) {
     }
 
     const data = await request.json()
+
+    const stage: "early" | "complete" | "disqualified" | undefined =
+      data.lead_stage === "early" ? "early"
+      : data.lead_stage === "disqualified" ? "disqualified"
+      : data.lead_stage === "complete" ? "complete"
+      : undefined
 
     // Server-side validation
     const phone = (data.phone || "").replace(/\D/g, "").replace(/^1/, "")
@@ -83,7 +99,13 @@ export async function POST(request: Request) {
 
     const payload = { ...data, server_ip: ip }
 
-    const webhookUrl = process.env.WEBHOOK_URL
+    const webhookUrl = stage === "disqualified"
+      ? process.env.WEBHOOK_URL_DISQUALIFIED
+      : process.env.WEBHOOK_URL
+    if (stage === "disqualified" && !webhookUrl) {
+      // Visible in Vercel runtime logs; no personal data.
+      console.log("lead_stage=disqualified (not forwarded):", data.disqualify_reason || "unknown")
+    }
     if (webhookUrl) {
       await fetch(webhookUrl, {
         method: "POST",
@@ -96,7 +118,8 @@ export async function POST(request: Request) {
     try {
       const GF_CREDENTIAL_ID = process.env.GOFUNNEL_WEBHOOK_CREDENTIAL_ID || ""
       const GF_BEARER = process.env.GOFUNNEL_WEBHOOK_SECRET || ""
-      if (GF_CREDENTIAL_ID && GF_BEARER) {
+      // Same as before for phase 1 and the final submit; disqualified sellers are not forwarded.
+      if (stage !== "disqualified" && GF_CREDENTIAL_ID && GF_BEARER) {
         const gfCookie = request.headers.get("cookie") || ""
         const gfMatch = gfCookie.match(/(?:^|; )gf_sid=([^;]*)/)
         const gfSid = (data.gf_sid || (gfMatch ? decodeURIComponent(gfMatch[1]) : "") || "").toString().trim()
@@ -111,7 +134,7 @@ export async function POST(request: Request) {
           sid: gfSid || undefined,
           formId: FORM_SLUG,
           formTitle: FORM_TITLE,
-          idempotencyKey: gfStr(data.meta_event_id),
+          idempotencyKey: stage === "early" ? undefined : gfStr(data.meta_event_id),
           leadQuestions: {
             is_legal_owner: gfStr(data.isLegalOwner),
             listed_on_market: gfStr(data.listedOnMarket),
@@ -125,9 +148,10 @@ export async function POST(request: Request) {
             qualified: data.qualified === true,
             lead_score: data.lead_score,
             lead_quality: data.lead_quality,
-            meta_event_id: data.meta_event_id,
-            meta_event_name: data.meta_event_name,
-            meta_value: data.meta_value,
+            // Phase 1 forwards exactly what it did before the lead_stage contract (no meta_* fields).
+            meta_event_id: stage === "early" ? undefined : data.meta_event_id,
+            meta_event_name: stage === "early" ? undefined : data.meta_event_name,
+            meta_value: stage === "early" ? undefined : data.meta_value,
             address: data.address,
             state: data.state,
             city: data.city,

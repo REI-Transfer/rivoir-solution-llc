@@ -5,16 +5,16 @@ import { ChevronDown } from "lucide-react";
 import { marketPhrase, type Brand } from "@/lib/brand";
 
 function buildFaqs(brand: Brand) {
-  const company = brand.companyName;
+  const company = brand.displayName || brand.companyName;
   const market = marketPhrase(brand);
   return [
     {
       question: "How does the cash offer process work?",
-      answer: `Enter your address and answer a few quick questions. ${company} reviews your property details and comparable sales, then follows up with a fair cash offer — usually within 24 hours. There's no cost and no obligation.`,
+      answer: `Enter your address and answer a few quick questions. ${company} reviews your property details and comparable sales, then follows up with a fair cash offer, usually within 24 hours. There's no cost and no obligation.`,
     },
     {
       question: "Do I need to make any repairs before selling?",
-      answer: "No. We buy houses in any condition. Roof damage, outdated kitchens, overgrown yards, tenant damage — we've seen it all. You don't need to fix, clean, or stage anything.",
+      answer: "No. We buy houses in any condition. Roof damage, outdated kitchens, overgrown yards, tenant damage: we've seen it all. You don't need to fix, clean, or stage anything.",
     },
     {
       question: "Are there any fees or commissions?",
@@ -35,14 +35,14 @@ function buildFaqs(brand: Brand) {
   ];
 }
 
-export function FaqSection({ brand }: { brand: Brand }) {
+export function FaqSection({ brand, landing = false }: { brand: Brand; landing?: boolean }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const faqs = buildFaqs(brand);
 
   return (
-    <section id="faq" className="bg-secondary py-20 md:py-32">
+    <section id="faq" className={landing ? "bg-white py-16 md:py-24" : "bg-secondary py-20 md:py-32"}>
       <div className="mx-auto max-w-3xl px-6 md:px-12">
-        <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground text-center mb-4">
+        <h2 className={landing ? "font-display text-5xl md:text-6xl leading-none text-[color:var(--rv-navy)] text-center mb-4" : "text-3xl md:text-4xl font-bold tracking-tight text-foreground text-center mb-4"}>
           Common Questions
         </h2>
         <p className="text-center text-muted-foreground text-lg mb-12">
