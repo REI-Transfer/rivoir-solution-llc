@@ -16,6 +16,15 @@ const config = {
   ownerName:       process.env.OWNER_NAME        ?? "",
   headshotUrl:     process.env.HEADSHOT_URL      ?? "",
 
+  // Landing layout (grumpyhare style). Defaults are Rivoir's own files in /public, so the
+  // page needs no new settings; each can be overridden from Vercel env without a code change.
+  // Both Jamie images are his real photos (already transparent cut-outs), never generated people.
+  ownerCutoutUrl:  process.env.OWNER_CUTOUT_URL  || "/images/jamie-hero.webp",   // webp copy of HEADSHOT_URL
+  teamPhotoUrl:    process.env.TEAM_PHOTO_URL    || "/images/jamie-team.webp",   // webp copy of images/rivoir_landing.png
+  heroBgUrl:       process.env.HERO_BG_URL       || "/images/hero-house.webp",   // AI house photo, no people
+  teamBgUrl:       process.env.TEAM_BG_URL       || "/images/team-bg.webp",      // AI living room, no people
+  marketName:      process.env.MARKET_NAME       || "the Bay Area",
+
   // Hero
   headline:        process.env.HEADLINE          ?? "Sell Your House Fast For Cash",
   headlineAccent:  process.env.HEADLINE_ACCENT   ?? "",

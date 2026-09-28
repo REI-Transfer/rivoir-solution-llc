@@ -124,3 +124,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+
+/* Landing page (grumpyhare layout, ported from Sellers Choice) */
+.font-display {
+  font-family: var(--font-display), "Bebas Neue", "Oswald", Impact, sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+/* Rivoir brand: navy #052547 (ACCENT_COLOR) and the logo teal #0E8CA6. Orange is kept for
+   CTA buttons only: it is the conversion colour of the reference layout and contrasts
+   with both brand colours. */
+.rv-landing {
+  --rv-navy: #052547;
+  --rv-teal: #0E8CA6;
+  --rv-orange: #e8672a;
+  --rv-orange-hover: #d4571d;
+  --rv-mist: #e9eff5;
+}

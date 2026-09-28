@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { marketPhrase, type Brand } from "@/lib/brand";
+import { openOfferModal } from "@/components/landing/cta";
 
 type Block =
   | { type: "hook-headline"; content: string }
@@ -13,16 +14,16 @@ type Block =
   | { type: "divider"; content: string }
   | { type: "cta"; content: string };
 
-function buildBlocks(brand: Brand): Block[] {
-  const company = brand.companyName;
+function buildBlocks(brand: Brand, landing = false): Block[] {
+  const company = landing ? brand.displayName : brand.companyName;
   const market = marketPhrase(brand);
-  return [
+  const blocks: Block[] = [
     { type: "hook-headline", content: "A Simple, Honest Way to Sell Your House" },
     {
       type: "body",
-      content: `${company} buys houses directly from homeowners in ${market}. No listings, no showings, no repairs — just a fair cash offer and a closing date you choose.`,
+      content: `${company} buys houses directly from homeowners in ${market}. No listings, no showings, no repairs. Just a fair cash offer and a closing date you choose.`,
     },
-    { type: "valueprop", content: "No Repairs Needed|Sell exactly as-is. Leaky roof, dated kitchen, tenant damage — we handle it. You fix nothing and clean nothing." },
+    { type: "valueprop", content: "No Repairs Needed|Sell exactly as-is. Leaky roof, dated kitchen, tenant damage: we handle it. You fix nothing and clean nothing." },
     { type: "valueprop", content: "No Fees or Commissions|No agent commissions and no closing costs. The number on your offer is the number you walk away with." },
     { type: "valueprop", content: "Close On Your Timeline|Need to close in a week? Need sixty days to sort out your next move? You pick the date that works for you." },
     { type: "valueprop", content: "A Fair, Final Offer|We do our homework before we make an offer, so the number doesn't get chipped away after we see the home." },
@@ -34,8 +35,12 @@ function buildBlocks(brand: Brand): Block[] {
     { type: "divider", content: "" },
     { type: "subheadline", content: "Why Homeowners Choose Us Over a Traditional Listing" },
     { type: "comparison", content: "" },
-    { type: "cta", content: "Get your cash offer now — it only takes two minutes." },
+    { type: "cta", content: "Get your cash offer now. It only takes two minutes." },
   ];
+  // The landing page has its own 3-step process section, so drop the duplicate steps here.
+  return landing
+    ? blocks.filter((b, i) => !(b.type === "step" || (b.type === "subheadline" && b.content === "How This Works") || (b.type === "divider" && blocks[i + 1]?.content === "How This Works")))
+    : blocks;
 }
 
 function ComparisonTable({ company }: { company: string }) {
@@ -71,10 +76,11 @@ function ComparisonTable({ company }: { company: string }) {
   );
 }
 
-export function SalesLetterSection({ brand }: { brand: Brand }) {
+/** `landing` = grumpyhare-layout styling (display headings, orange CTA opening the form pop-up, no duplicate steps). */
+export function SalesLetterSection({ brand, landing = false }: { brand: Brand; landing?: boolean }) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const [visibleItems, setVisibleItems] = useState<Set<number>>(new Set());
-  const blocks = buildBlocks(brand);
+  const blocks = buildBlocks(brand, landing);
 
   const handleIntersection = useCallback((entries: IntersectionObserverEntry[]) => {
     entries.forEach((entry) => {
@@ -100,11 +106,12 @@ export function SalesLetterSection({ brand }: { brand: Brand }) {
   let stepCount = 0;
 
   const scrollToHero = () => {
+    if (landing) return openOfferModal();
     document.getElementById("hero")?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
-    <section ref={sectionRef} className="bg-background py-20 md:py-32 lg:py-40">
+    <section ref={sectionRef} className={landing ? "bg-[color:var(--rv-mist)] py-16 md:py-24" : "bg-background py-20 md:py-32 lg:py-40"}>
       <div className="mx-auto max-w-3xl px-6 md:px-12">
         {blocks.map((paragraph, index) => {
           const isVisible = visibleItems.has(index);
@@ -116,7 +123,7 @@ export function SalesLetterSection({ brand }: { brand: Brand }) {
                 data-index={index}
                 className={`mb-12 transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
               >
-                <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-foreground leading-tight">
+                <h2 className={landing ? "font-display text-5xl md:text-6xl leading-none text-[color:var(--rv-navy)]" : "text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-foreground leading-tight"}>
                   {paragraph.content}
                 </h2>
                 <div className="mt-6 h-1 w-20 bg-[color:var(--brand-accent)]" />
@@ -131,7 +138,7 @@ export function SalesLetterSection({ brand }: { brand: Brand }) {
                 data-index={index}
                 className={`mb-6 transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
               >
-                <h3 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
+                <h3 className={landing ? "font-display text-4xl leading-none text-[color:var(--rv-navy)]" : "text-2xl md:text-3xl font-semibold tracking-tight text-foreground"}>
                   {paragraph.content}
                 </h3>
               </div>
@@ -191,7 +198,7 @@ export function SalesLetterSection({ brand }: { brand: Brand }) {
                 data-index={index}
                 className={`mb-8 transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
               >
-                <ComparisonTable company={brand.companyName} />
+                <ComparisonTable company={landing ? brand.displayName : brand.companyName} />
               </div>
             );
           }
@@ -205,7 +212,7 @@ export function SalesLetterSection({ brand }: { brand: Brand }) {
               >
                 <button
                   onClick={scrollToHero}
-                  className="inline-flex items-center gap-2 bg-[#1B2A4A] hover:bg-[#131E36] text-white font-semibold text-xl px-12 py-5 rounded-2xl transition-all shadow-lg"
+                  className={landing ? "inline-flex items-center gap-2 bg-[color:var(--rv-orange)] hover:bg-[color:var(--rv-orange-hover)] text-white font-bold text-xl px-10 py-4 rounded-lg transition-colors shadow-md" : "inline-flex items-center gap-2 bg-[#1B2A4A] hover:bg-[#131E36] text-white font-semibold text-xl px-12 py-5 rounded-2xl transition-all shadow-lg"}
                 >
                   Get My Cash Offer Now
                 </button>
