@@ -21,6 +21,11 @@ import { NextResponse } from "next/server"
  *                     Meta CAPI "Lead") for a disqualified seller. Forwarded only when
  *                     WEBHOOK_URL_DISQUALIFIED is set (a handler that understands it).
  * Missing lead_stage = treated by the source value exactly as before.
+ *
+ * GoFunnel gets phase 1 and the finished survey (never a disqualified one).
+ * Phase 1 is labelled meta_event_name "LeadEarly" so GoFunnel's scored Lead
+ * route skips it; an unlabelled partial matches that route and fires a real
+ * Meta Lead for a seller who never finished.
  */
 
 const FORM_SLUG = "rivoir-solution-llc-survey"
@@ -148,9 +153,15 @@ export async function POST(request: Request) {
             qualified: data.qualified === true,
             lead_score: data.lead_score,
             lead_quality: data.lead_quality,
-            // Phase 1 forwards exactly what it did before the lead_stage contract (no meta_* fields).
+            // Phase 1 carries meta_event_name "LeadEarly" and nothing else meta_*.
+            // The name is a LABEL, not a pixel fire (no browser event fires on
+            // phase 1). GoFunnel routes on it: its scored Lead route excludes
+            // LeadEarly, so without this stamp a partial matches the plain Lead
+            // route and fires a real Meta Lead for someone who never finished
+            // the survey - and fireOncePerLead then suppresses the real,
+            // scored event when they do.
             meta_event_id: stage === "early" ? undefined : data.meta_event_id,
-            meta_event_name: stage === "early" ? undefined : data.meta_event_name,
+            meta_event_name: stage === "early" ? "LeadEarly" : data.meta_event_name,
             meta_value: stage === "early" ? undefined : data.meta_value,
             address: data.address,
             state: data.state,
