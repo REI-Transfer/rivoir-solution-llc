@@ -12,13 +12,16 @@ import {
 import { SalesLetterSection } from "@/components/v2/sales-letter-section";
 import { FaqSection } from "@/components/v2/faq-section";
 import { OfferModal } from "@/components/landing/cta";
+import { headers } from "next/headers";
 import { buildBrand } from "@/lib/brand";
+import { areaFromRequest, localizeBrand } from "@/lib/geo-area";
 
 // Layout modeled on homebuyer.grumpyhare.com, ported from Sellers Choice (go.balboahomebuyers.com).
 // Every CTA opens the two-step form in a pop-up (OfferModal). The previous layout's
 // components stay in components/v2/* (the survey card, sales letter and FAQ are reused).
-export default function HomePage() {
-  const brand = buildBrand();
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ area?: string }> }) {
+  const { area } = await searchParams;
+  const brand = localizeBrand(buildBrand(), areaFromRequest(await headers(), area));
   return (
     <main className="v2-light rv-landing min-h-screen bg-white" style={{ ["--brand-accent" as any]: brand.accentColor }}>
       <style
