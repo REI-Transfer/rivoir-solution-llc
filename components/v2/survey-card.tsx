@@ -659,6 +659,38 @@ export function SurveyCard({ initialAddress, brand }: SurveyCardProps) {
     </button>
   )
 
+  // Phase-2 DQ: the seller's contact details are already with the client (phase-1 post) and
+  // they follow up, so show a neutral "we'll be in touch" screen instead of a rejection. The
+  // disqualified post is still sent (sendDisqualified). Phase-1 DQs (outsideArea) keep the block screen.
+  if (isDisqualified && phase === 2) {
+    return (
+      <div className="w-full max-w-2xl rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-lg">
+        <div className="flex flex-col items-center gap-5 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-50">
+            <Check className="h-8 w-8 text-green-500" />
+          </div>
+          <div>
+            <h2 className="text-xl md:text-2xl font-semibold text-[#0F1D2F]">
+              {surveyData.firstName ? `Thank You, ${surveyData.firstName}!` : "Thank You!"}
+            </h2>
+            <p className="mt-2 text-[#5A6B7D] text-lg">
+              We&apos;ve received your information.
+            </p>
+            <p className="mt-4 text-base text-[#5A6B7D]">
+              A member of our team will reach out to you shortly to talk about your property.
+            </p>
+          </div>
+          <a
+            href={`tel:${phoneHref}`}
+            className="mt-2 inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-8 py-4 text-lg text-white hover:opacity-90 transition-colors"
+          >
+            Call Us: {phoneDisplay}
+          </a>
+        </div>
+      </div>
+    )
+  }
+
   if (isDisqualified) {
     const disqualifyMessages: Record<string, { title: string; message: string; detail: string }> = {
       notOwner: {
