@@ -75,8 +75,8 @@ const CONDITION_OPTIONS = [
   { id: "distressed", label: "Distressed - Significant issues", desc: "Not livable as-is. Significant damage, or it's been sitting vacant." },
 ]
 
-// Newer reason list (the one on our newer client forms, e.g. Simple Key). The last
-// option ("no-reason") is a hard stop: the seller sees the "Just Browsing?" screen.
+// Newer reason list (the one on our newer client forms, e.g. Simple Key), minus the
+// "No reason / seeing what my house is worth" option, which William removed 2026-10-26.
 const REASON_OPTIONS = [
   { id: "foreclosure", label: "Facing foreclosure" },
   { id: "behind-payments", label: "Behind on payments" },
@@ -86,7 +86,6 @@ const REASON_OPTIONS = [
   { id: "vacant", label: "Vacant property I need to sell" },
   { id: "urgent-financial", label: "Urgent financial situation not listed above" },
   { id: "personal", label: "Personal situation not listed above" },
-  { id: "no-reason", label: "No reason / seeing what my house is worth" },
 ]
 
 // ─── Lead scoring (browser-side, no n8n changes) ───────────────────────
@@ -103,7 +102,7 @@ const SCORE_REASON: Record<string, number> = {
   'inherited': 2, 'repairs': 2,
   'other': 1,
   'relocation': 0, 'divorce': 0, 'downsizing': 0,
-  // newer list ids; 'no-reason' is stopped before submit so its weight never counts
+  // newer list ids; 'no-reason' is no longer offered, kept so older saved answers still score
   'urgent-financial': 3, 'vacant': 2, 'personal': 1, 'no-reason': 0,
 }
 const SCORE_CONDITION: Record<string, number> = {
@@ -217,7 +216,6 @@ export function SurveyCard({ initialAddress, brand }: SurveyCardProps) {
   const companyName = brand.companyName
   const phoneDisplay = brand.phoneDisplay
   const phoneHref = brand.phoneHref
-  const disqualifiedPropertyTypes = brand.disqualifiedPropertyTypes
   const [step, setStep] = useState(initialAddress ? 2 : 1)
   const [surveyData, setSurveyData] = useState<SurveyData>({
     address: initialAddress || "",
@@ -563,22 +561,10 @@ export function SurveyCard({ initialAddress, brand }: SurveyCardProps) {
     setSurveyData({ ...surveyData, [field]: value })
     const answers = { ...surveyData, [field]: value }
 
-    // Disqualify: property type — env-driven (DISQUALIFIED_PROPERTY_TYPES). Rivoir
-    // buys single-family, multi-family, condos and townhouses; blocks mobile-home/land/other.
-    if (field === "propertyType" && disqualifiedPropertyTypes.includes(value)) {
-      sendDisqualified("propertyType", answers)
-      setTimeout(() => { setDisqualifyReason("propertyType"); setIsDisqualified(true) }, 300)
-      return
-    }
-    // Default hard-DQ: move-in ready / excellent condition (not a distressed/motivated seller)
-    if (field === "condition" && value === "excellent" && !excellentPass) {
-      sendDisqualified("excellentCondition", answers)
-      setTimeout(() => { setDisqualifyReason("excellentCondition"); setIsDisqualified(true) }, 300)
-      return
-    }
-    // Listing hard-DQ (Elevate v2.51): only "No, never" (not-listed) passes; active,
-    // expired/cancelled, and "not sure" all block.
-    if (field === "listedOnMarket" && ["listed-active", "not-sure", "listed-expired"].includes(value)) {
+    // Only two answers stop the seller (William 2026-10-26): the house is listed right now,
+    // or they are not the legal owner. Every other answer goes through and is sent as a
+    // complete lead; answers still set lead_score and Lead vs LeadLowIntent (runFinalSubmit).
+    if (field === "listedOnMarket" && value === "listed-active") {
       sendDisqualified("listed", answers)
       setTimeout(() => { setDisqualifyReason("listed"); setIsDisqualified(true) }, 300)
       return
@@ -586,19 +572,6 @@ export function SurveyCard({ initialAddress, brand }: SurveyCardProps) {
     if (field === "isLegalOwner" && value === "no") {
       sendDisqualified("notOwner", answers)
       setTimeout(() => { setDisqualifyReason("notOwner"); setIsDisqualified(true) }, 300)
-      return
-    }
-    // Default hard-DQ: short ownership (under ~5 years — real option ids: "1-3-years" = <3yr, "3-5-years" = 3-5yr)
-    if (field === "ownershipLength" && ["1-3-years", "3-5-years"].includes(value)) {
-      sendDisqualified("shortOwnership", answers)
-      setTimeout(() => { setDisqualifyReason("shortOwnership"); setIsDisqualified(true) }, 300)
-      return
-    }
-
-    // "No reason / seeing what my house is worth" is a hard stop (same as the newer client forms).
-    if (field === "reason" && value === "no-reason") {
-      sendDisqualified("noReason", answers)
-      setTimeout(() => { setDisqualifyReason("noReason"); setIsDisqualified(true) }, 300)
       return
     }
 
