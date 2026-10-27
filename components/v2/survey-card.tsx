@@ -529,13 +529,51 @@ export function SurveyCard({ initialAddress, brand }: SurveyCardProps) {
     }
   }
 
+  // Phase-2 hard DQ after the early lead was sent: tell the server this seller was
+  // disqualified (lead_stage "disqualified"). No pixel event. Fire-and-forget: it never
+  // delays the block screen. Phase 1 has no DQs after contact details, so nothing is sent there.
+  const dqSentRef = useRef(false)
+  const sendDisqualified = (reason: string, answers: SurveyData) => {
+    if (phase !== 2 || dqSentRef.current || honeypot) return
+    dqSentRef.current = true
+    try {
+      void fetch('/api/submit-v2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...answers,
+          ...trackingRef.current,
+          gf_sid: readGfSid(),
+          source: 'disqualified',
+          submittedAt: new Date().toISOString(),
+          lead_stage: 'disqualified',
+          qualified: false,
+          disqualify_reason: reason,
+          stage1_event_id: stage1EventIdRef.current,
+        }),
+      }).catch(() => undefined)
+    } catch {
+      // never block the disqualify screen
+    }
+  }
+
   const handleOptionSelect = (field: keyof SurveyData, value: string) => {
     setSurveyData({ ...surveyData, [field]: value })
     const answers = { ...surveyData, [field]: value }
 
-    // No survey answer stops the seller (William 2026-10-26): everyone who reaches the
-    // questions finishes and is sent as a complete lead. Answers still set lead_score and
-    // whether Meta gets a real "Lead" or a "LeadLowIntent" (see runFinalSubmit).
+    // Only two answers stop the seller (William 2026-10-26): the house is listed right now,
+    // or they are not the legal owner. Every other answer goes through and is sent as a
+    // complete lead; answers still set lead_score and Lead vs LeadLowIntent (runFinalSubmit).
+    if (field === "listedOnMarket" && value === "listed-active") {
+      sendDisqualified("listed", answers)
+      setTimeout(() => { setDisqualifyReason("listed"); setIsDisqualified(true) }, 300)
+      return
+    }
+    if (field === "isLegalOwner" && value === "no") {
+      sendDisqualified("notOwner", answers)
+      setTimeout(() => { setDisqualifyReason("notOwner"); setIsDisqualified(true) }, 300)
+      return
+    }
 
     // Two-step: on the last qualifying step (reason, step 8) just record the answer and STOP —
     // the final submit stays behind the "Get My Cash Offer" button (no auto-submit).
@@ -596,8 +634,7 @@ export function SurveyCard({ initialAddress, brand }: SurveyCardProps) {
 
   // Phase-2 DQ: the seller's contact details are already with the client (phase-1 post) and
   // they follow up, so show a neutral "we'll be in touch" screen instead of a rejection. The
-  // disqualified post is still sent. Since 2026-10-26 no phase-2 answer disqualifies, so this
-  // screen is not reached; phase-1 DQs (outsideArea) keep the block screen.
+  // disqualified post is still sent (sendDisqualified). Phase-1 DQs (outsideArea) keep the block screen.
   if (isDisqualified && phase === 2) {
     return (
       <div className="w-full max-w-2xl rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-lg">
