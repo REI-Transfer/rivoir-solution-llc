@@ -9,6 +9,7 @@ import { AddressAutocomplete, type AddressDetails } from "@/components/v2/addres
 import { isWithinServiceArea } from "@/lib/service-area-v2"
 import { trackStep } from "@/lib/funnel"
 import { marketPhrase, type Brand } from "@/lib/brand"
+import { RecordSurveyCard } from "@/components/v2/record-survey-card"
 
 interface SurveyData {
   address: string
@@ -208,12 +209,12 @@ function deriveAddressParts(formatted: string): { city: string; state: string; z
   return out
 }
 
-interface SurveyCardProps {
+export interface SurveyCardProps {
   initialAddress?: string
   brand: Brand
 }
 
-export function SurveyCard({ initialAddress, brand }: SurveyCardProps) {
+function CurrentSurveyCard({ initialAddress, brand }: SurveyCardProps) {
   const companyName = brand.companyName
   const phoneDisplay = brand.phoneDisplay
   const phoneHref = brand.phoneHref
@@ -981,4 +982,11 @@ export function SurveyCard({ initialAddress, brand }: SurveyCardProps) {
       </div>
     </div>
   )
+}
+
+// NEXT_PUBLIC_RECORD_FORM=two-step: the property-record form (record-survey-card.tsx).
+// Unset = this page's current form above, untouched (unset + redeploy = rollback).
+export function SurveyCard(props: SurveyCardProps) {
+  if (props.brand.recordForm) return <RecordSurveyCard {...props} mode={props.brand.recordMode} />
+  return <CurrentSurveyCard {...props} />
 }

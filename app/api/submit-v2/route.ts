@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server"
+import { calculateLeadScore, leadQuality } from "@/lib/lead-score"
+import { lookupProperty, withPriority, applyConditionRule, legacyAnswers, recordUsable, questionsToAsk, parseUsAddress, type LookupInput, type LookupResult } from "@/lib/dealmachine"
+import { sellerAnswerRule } from "@/lib/form-rules"
 
 /**
  * app/api/submit-v2/route.ts — submit endpoint for the /v2 two-step landing.
@@ -52,6 +55,33 @@ function isRateLimited(ip: string): boolean {
   return entry.count > maxSubmissions
 }
 
+// ── Property-record form (components/v2/record-survey-card.tsx) ────────────────
+// "123 Main St, Austin, TX 78701, USA" → "123 Main St"
+const streetOf = (address: string) => (address || "").split(",")[0].trim()
+
+// Low equity fires LeadLowIntent, an event GoFunnel already handles.
+const META_EVENT_FOR: Record<string, string> = { lead: "Lead", low_equity: "LeadLowIntent", low_intent: "LeadLowIntent" }
+
+// Property record fields for n8n. Booleans/numbers as-is, empty = "". Neutral names:
+// a client webhook that receives the whole payload must not learn the data vendor.
+function dmFields(dm: LookupResult, priority: string, reasonDetails: string) {
+  return {
+    record_found: dm.matched,
+    record_equity_pct: dm.equity_pct ?? "",
+    record_equity_band: dm.equity_band,
+    record_value: dm.value ?? "",
+    record_owed: dm.owed ?? "",
+    record_verdict: dm.verdict,
+    record_dq_reason: dm.dq_reason ?? "",
+    record_listed_now: dm.listed_now,
+    record_owner_match: dm.owner_match ?? "",
+    record_distress: dm.distress.join("; "),
+    record_excellent_bypass: dm.excellent_bypass === true,
+    property_summary: withPriority(dm.summary, priority, reasonDetails),
+    lookup_credits: dm.credits_used,
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
@@ -102,14 +132,95 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true })
     }
 
-    const payload = { ...data, server_ip: ip }
+    const payload: Record<string, unknown> = { ...data, server_ip: ip }
 
-    const webhookUrl = stage === "disqualified"
+    // ── Property record check (property-record form only) ─────────────────
+    // record_check marks its posts (early = contact details, complete = finished survey;
+    // same house = no new credit). Never for a disqualified post. Every other post goes
+    // exactly as before and is never looked up.
+    const recordCheck = data.record_check === true
+    delete payload.record_check
+    delete payload.record_mode
+    let dm: LookupResult | null = null
+    let excellentOut = false
+    if (recordCheck && (stage === "early" || stage === "complete")) {
+      // City / state / ZIP come from the address picker; when the address was typed in
+      // the hero box they are blank, so read them from the address text instead.
+      const parsed = parseUsAddress(typeof data.address === "string" ? data.address : "")
+      const input: LookupInput = {
+        street: streetOf(data.address), city: data.city || parsed.city, state: data.state || parsed.state,
+        zip: data.zip || parsed.zip, lastName: data.lastName || "",
+      }
+      // Fill the same blanks in what n8n / the CRM receives (only where empty).
+      for (const k of ["city", "state", "zip"] as const) {
+        if (!(typeof data[k] === "string" && data[k].trim()) && parsed[k]) payload[k] = parsed[k]
+      }
+      const landOwned = typeof data.landOwned === "string" ? data.landOwned : ""
+      dm = await lookupProperty(input, { landOwned })
+      dm = applyConditionRule(dm, typeof data.condition === "string" ? data.condition : "")
+      // The seller's own answers, by this client's rules (lib/form-rules.ts): an answer the
+      // client takes only as low intent turns a record Lead into a low intent lead.
+      if (stage === "complete" && (dm.verdict === "lead" || dm.verdict === "low_equity")) {
+        const own = sellerAnswerRule(data, recordUsable(dm))
+        if (own.rule === "low_intent") dm = { ...dm, verdict: "low_intent" }
+        else if (own.rule === "dq") dm = { ...dm, verdict: "dq", dq_reason: null }
+      }
+      excellentOut = dm.dq_reason === "excellentCondition"
+      Object.assign(payload, dmFields(dm, typeof data.priority === "string" ? data.priority : "",
+        typeof data.reasonDetails === "string" ? data.reasonDetails : ""))
+      // Same fields, same format: fill the old answer fields the seller wasn't asked,
+      // from the record, so the CRM mapping keeps working untouched.
+      if (dm.matched) {
+        for (const [k, v] of Object.entries(legacyAnswers(dm))) {
+          const answered = typeof data[k] === "string" && data[k].trim() !== ""
+          if (v && !answered) payload[k] = v
+        }
+      }
+      if (dm.verdict === "dq" || excellentOut) {
+        // Screened out by the record (listed, property type, equity): the seller still
+        // answers the rest and sees the normal thank-you page, but the post goes as
+        // disqualified (source "disqualified", as the current form's stage-2 screen-outs),
+        // so it never reaches the handler's lead chain. No Meta event, no GoFunnel.
+        Object.assign(payload, {
+          lead_stage: "disqualified", source: "disqualified", qualified: false,
+          disqualify_reason: excellentOut ? "excellent_condition" : dm.dq_reason,
+          meta_event_name: "", meta_value: 0,
+          ...(stage === "early" ? { stage1_event_id: data.meta_event_id } : {}),
+        })
+      } else if (stage === "complete" && META_EVENT_FOR[dm.verdict]) {
+        Object.assign(payload, {
+          qualified: dm.verdict === "lead",
+          meta_event_name: META_EVENT_FOR[dm.verdict],
+          meta_value: dm.verdict === "lead" ? payload.meta_value : 0,
+        })
+      }
+      // Re-score after the record filled the answers the seller was not asked, so
+      // lead_score / lead_quality / the Lead value match the current form for the same house.
+      const str = (k: string) => (typeof payload[k] === "string" ? (payload[k] as string) : "")
+      const score = calculateLeadScore({ timeline: str("timeline"), ownershipLength: str("ownershipLength"), reason: str("reason"), condition: str("condition") })
+      payload.lead_score = score
+      payload.lead_quality = leadQuality(score)
+      // Record says Lead → score x 25. No usable record (current rules) → keep the
+      // browser's Lead / no-Lead decision, re-valued with the same score.
+      if (stage === "complete") {
+        if (dm.verdict === "lead") payload.meta_value = score * 25
+        else if (dm.verdict === "fallback" && Number(payload.meta_value) > 0) payload.meta_value = score * 25
+        else payload.meta_value = 0
+      }
+    }
+    // The stage this post goes out as (a record screen-out turns it into "disqualified").
+    const sendStage = payload.lead_stage === "disqualified" ? "disqualified" : stage
+    const dmResponse = !dm ? {} : stage === "early"
+      // matched = record usable. ask = old questions the record could not answer.
+      ? { matched: recordUsable(dm), is_mobile: dm.is_mobile, ask: questionsToAsk(dm), screened_out: excellentOut, excellent_bypass: dm.excellent_bypass === true }
+      : { verdict: dm.verdict, dq_reason: dm.dq_reason, lead_score: payload.lead_score }
+
+    const webhookUrl = sendStage === "disqualified"
       ? process.env.WEBHOOK_URL_DISQUALIFIED
       : process.env.WEBHOOK_URL
-    if (stage === "disqualified" && !webhookUrl) {
+    if (sendStage === "disqualified" && !webhookUrl) {
       // Visible in Vercel runtime logs; no personal data.
-      console.log("lead_stage=disqualified (not forwarded):", data.disqualify_reason || "unknown")
+      console.log("lead_stage=disqualified (not forwarded):", payload.disqualify_reason || "unknown")
     }
     if (webhookUrl) {
       await fetch(webhookUrl, {
@@ -124,7 +235,7 @@ export async function POST(request: Request) {
       const GF_CREDENTIAL_ID = process.env.GOFUNNEL_WEBHOOK_CREDENTIAL_ID || ""
       const GF_BEARER = process.env.GOFUNNEL_WEBHOOK_SECRET || ""
       // Same as before for phase 1 and the final submit; disqualified sellers are not forwarded.
-      if (stage !== "disqualified" && GF_CREDENTIAL_ID && GF_BEARER) {
+      if (sendStage !== "disqualified" && GF_CREDENTIAL_ID && GF_BEARER) {
         const gfCookie = request.headers.get("cookie") || ""
         const gfMatch = gfCookie.match(/(?:^|; )gf_sid=([^;]*)/)
         const gfSid = (data.gf_sid || (gfMatch ? decodeURIComponent(gfMatch[1]) : "") || "").toString().trim()
@@ -148,11 +259,13 @@ export async function POST(request: Request) {
             asking_price: gfStr(data.askingPrice),
             condition: gfStr(data.condition),
             reason: gfStr(data.reason),
+            land_owned: gfStr(data.landOwned),
+            priority: gfStr(data.priority),
           },
           data: {
-            qualified: data.qualified === true,
-            lead_score: data.lead_score,
-            lead_quality: data.lead_quality,
+            qualified: payload.qualified === true,
+            lead_score: payload.lead_score,
+            lead_quality: payload.lead_quality,
             // Phase 1 carries meta_event_name "LeadEarly" and nothing else meta_*.
             // The name is a LABEL, not a pixel fire (no browser event fires on
             // phase 1). GoFunnel routes on it: its scored Lead route excludes
@@ -161,8 +274,8 @@ export async function POST(request: Request) {
             // the survey - and fireOncePerLead then suppresses the real,
             // scored event when they do.
             meta_event_id: stage === "early" ? undefined : data.meta_event_id,
-            meta_event_name: stage === "early" ? "LeadEarly" : data.meta_event_name,
-            meta_value: stage === "early" ? undefined : data.meta_value,
+            meta_event_name: stage === "early" ? "LeadEarly" : payload.meta_event_name,
+            meta_value: stage === "early" ? undefined : payload.meta_value,
             address: data.address,
             state: data.state,
             city: data.city,
@@ -188,7 +301,7 @@ export async function POST(request: Request) {
       }
     } catch {}
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, ...dmResponse })
   } catch {
     return NextResponse.json({ success: false }, { status: 500 })
   }

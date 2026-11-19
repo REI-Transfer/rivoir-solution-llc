@@ -42,6 +42,13 @@ export interface Brand {
   // Rivoir extension: the env-driven property-type DQ list, threaded to the
   // two-step survey card (DISQUALIFIED_PROPERTY_TYPES is server-only, not NEXT_PUBLIC).
   disqualifiedPropertyTypes: string[]
+  /** Property-record form (components/v2/record-survey-card.tsx): demo-site switch,
+   *  always false here; screen-out button texts the client (PHONE_ACCEPTS_TEXT=0 → calls);
+   *  the switch and version (NEXT_PUBLIC_RECORD_FORM=two-step). */
+  showroom: boolean
+  phoneAcceptsText: boolean
+  recordForm: boolean
+  recordMode: "one-step" | "two-step"
 }
 
 function displayNameFrom(legal: string): string {
@@ -87,6 +94,14 @@ export function buildBrand(): Brand {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean),
+    showroom: false,
+    phoneAcceptsText: !["0", "false", "off"].includes((process.env.PHONE_ACCEPTS_TEXT ?? "").trim().toLowerCase()),
+    // NEXT_PUBLIC_RECORD_FORM=two-step turns the property-record form on. This page's
+    // lead handler is the two-step one (basic-capture, then qualifying-details), so only
+    // the two-step version is wired: any other value keeps the current form.
+    // Unset = the current form, untouched.
+    recordForm: (process.env.NEXT_PUBLIC_RECORD_FORM ?? "").trim().toLowerCase() === "two-step",
+    recordMode: "two-step",
   }
 }
 
